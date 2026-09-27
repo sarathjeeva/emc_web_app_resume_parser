@@ -42,8 +42,14 @@ function App() {
 
     try {
       const response = await fetch('/api/analyze', { method: 'POST', body: formData })
-      const data = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(data.error || 'The review could not be completed.')
+      const responseText = await response.text()
+      let data = {}
+      try { data = JSON.parse(responseText) } catch {}
+      if (!response.ok) {
+        const serverMessage = data.error || (responseText && !responseText.includes('<!DOCTYPE') ? responseText.trim() : '')
+        throw new Error(serverMessage || `The review server returned an error (${response.status}).`)
+      }
+      if (!data.analysis) throw new Error('The review server returned an incomplete response.')
       setResult(data)
       requestAnimationFrame(() => document.getElementById('results')?.scrollIntoView({ behavior: 'smooth' }))
     } catch (requestError) {

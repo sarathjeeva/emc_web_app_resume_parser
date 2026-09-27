@@ -1,21 +1,17 @@
-import { PDFParse } from "pdf-parse";
 import { Resume } from "./models/Resume.js";
 
 const LABD_URL = "https://agent.thedevlabs.io/v1/api/chat";
 
 export async function extractResumeText(buffer) {
-  let parser;
   try {
-    parser = new PDFParse({ data: buffer });
-    const result = await parser.getText();
+    const { default: pdfParse } = await import("pdf-parse/lib/pdf-parse.js");
+    const result = await pdfParse(buffer);
     const text = (result.text || "").trim();
     if (!text) throw { status: 422, error: "The PDF contains no extractable text. It may be a scanned image." };
-    return { text, pages: result.total };
+    return { text, pages: result.numpages };
   } catch (err) {
     if (err.status) throw err;
     throw { status: 422, error: "Could not read the PDF. It may be corrupted or password-protected." };
-  } finally {
-    if (parser) await parser.destroy().catch(() => {});
   }
 }
 

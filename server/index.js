@@ -1,14 +1,6 @@
-import { loadEnvFile } from "node:process";
-import { fileURLToPath } from "node:url";
 import express from "express";
 import { connectDB, isDatabaseConfigured } from "./db.js";
 import router, { uploadErrorHandler } from "./routes.js";
-
-try {
-  loadEnvFile(fileURLToPath(new URL(".env", import.meta.url)));
-} catch (err) {
-  if (err.code !== "ENOENT") console.warn("could not load server/.env:", err.message);
-}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
