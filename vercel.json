@@ -7,11 +7,14 @@
     },
     "server": {
       "root": "server/",
-      "framework": "express"
+      "framework": "express",
+      "entrypoint": "index.js"
     }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": { "service": "server" } },
+    { "source": "/health", "destination": { "service": "server" } },
     { "source": "/(.*)", "destination": { "service": "frontend" } }
   ]
 }
+ 
