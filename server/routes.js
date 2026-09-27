@@ -1,6 +1,6 @@
 import { Router } from "express";
 import multer from "multer";
-import { uploadResume, getAllResumes, getResumeById } from "./controller.js";
+import { analyzeResume, uploadResume, getAllResumes, getResumeById } from "./controller.js";
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 
@@ -16,6 +16,7 @@ const upload = multer({
 const router = Router();
 
 router.get("/health", (req, res) => res.json({ status: "ok" }));
+router.post("/analyze", upload.single("resume"), analyzeResume);
 router.post("/resume", upload.single("resume"), uploadResume);
 router.get("/resumes", getAllResumes);
 router.get("/resumes/:id", getResumeById);

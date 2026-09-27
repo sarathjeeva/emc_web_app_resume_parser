@@ -1,51 +1,71 @@
-import { extractResumeText, saveResume, listResumes, getResume } from "./service.js";
+import { connectDB } from "./db.js";
+import { compareResumeToJob, extractResumeText, getResume, listResumes, saveResume } from "./service.js";
 
-export async function uploadResume(req, res) {
-  if (!req.file) {
-    return res.status(400).json({
-      success: false,
-      error: "No file uploaded. Send a PDF in the 'resume' field.",
-    });
+export async function analyzeResume(req, res) {
+  if (!req.file) return res.status(400).json({ success: false, error: "Add a PDF in the 'resume' field." });
+
+  const jobDescription = String(req.body?.jobDescription || "").trim();
+  if (jobDescription.length < 50) {
+    return res.status(400).json({ success: false, error: "The job description must contain at least 50 characters." });
+  }
+  if (jobDescription.length > 15000) {
+    return res.status(400).json({ success: false, error: "The job description must be 15,000 characters or fewer." });
   }
 
   try {
+    await connectDB();
     const { text, pages } = await extractResumeText(req.file.buffer);
-
-    const saved = await saveResume({
+    const { analysis, creditsPercentLeft } = await compareResumeToJob({ resumeText: text, jobDescription });
+    const record = {
       fileName: req.file.originalname,
       sizeKB: +(req.file.size / 1024).toFixed(1),
       pages,
       content: text,
-    });
+      jobDescription,
+      analysis,
+    };
+    const saved = await saveResume(record);
 
-    return res.status(201).json({
+    return res.json({
       success: true,
-      message: "Resume received and content extracted successfully.",
       id: saved._id,
-      file: {
-        name: saved.fileName,
-        sizeKB: saved.sizeKB,
-        pages: saved.pages,
-      },
-      content: saved.content,
+      file: { name: record.fileName, sizeKB: record.sizeKB, pages },
+      analysis,
+      credits: { percentLeft: creditsPercentLeft },
     });
   } catch (err) {
-    return res.status(err.status || 500).json({
+    console.error("resume analysis failed:", err.error || err.message);
+    const isDatabaseError = err.name?.startsWith("Mongo") || err.name === "MongooseError";
+    return res.status(err.status || (isDatabaseError ? 503 : 500)).json({
       success: false,
-      error: err.error || "Something went wrong while processing the resume.",
+      error: err.error || (isDatabaseError ? "The database is unavailable. Please try again." : "Something went wrong while reviewing the resume."),
     });
   }
 }
 
+export const uploadResume = analyzeResume;
+
 export async function getAllResumes(req, res) {
-  const resumes = await listResumes();
-  res.json({ success: true, count: resumes.length, resumes });
+  try {
+    await connectDB();
+    const resumes = await listResumes();
+    return res.json({ success: true, count: resumes.length, resumes });
+  } catch {
+    return res.status(503).json({ success: false, error: "Could not load previous reviews." });
+  }
 }
 
 export async function getResumeById(req, res) {
-  const resume = await getResume(req.params.id);
-  if (!resume) {
-    return res.status(404).json({ success: false, error: "Resume not found." });
+  try {
+    await connectDB();
+    const resume = await getResume(req.params.id);
+    if (!resume) return res.status(404).json({ success: false, error: "Resume not found." });
+    return res.json({ success: true, resume });
+  } catch (err) {
+    const invalidId = err.name === "CastError";
+    return res.status(invalidId ? 400 : 503).json({
+      success: false,
+      error: invalidId ? "Invalid resume ID." : "Database unavailable.",
+    });
   }
-  res.json({ success: true, resume });
 }
